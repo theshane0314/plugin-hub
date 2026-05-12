@@ -93,8 +93,8 @@ If Seerr doesn't support OIDC natively, fallback is **option 3** (Worker pre-aut
 - Resolved by `aionnas/fix-oi-flash.sh`: GETs each of the 4 Access apps, merges `auto_redirect_to_identity: true` and `skip_interstitial: true`, PUTs the full body back. Confirmed working — flash gone.
 - If it ever regresses, the fallback is still: Cache Rule `Cache-Control: no-store` on `ai.plaincandle.dev`, or unregister the Open WebUI service worker.
 
-### 3. Add Radarr/Sonarr to Seerr
-- Seerr is up but no \*arr servers configured yet. User was on that form when we got sidetracked. API keys for Radarr/Sonarr are stored in their own configs on TrueNAS. From inside the seerr container, Radarr was reachable at `http://192.168.0.3:30025` with key `df199fd6139549059e2cb8905e2721fb` (confirmed working).
+### 3. Add Radarr/Sonarr to Seerr — DONE 2026-05-12
+- Both *arr servers connected to Seerr via its settings UI.
 
 ### 4. Old `plaincandle-home` Pages project cleanup — IN PROGRESS
 - Dormant in dashboard, custom domain detached, DNS points to Worker now. User can delete from CF UI when convenient.
