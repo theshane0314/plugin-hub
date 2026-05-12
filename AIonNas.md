@@ -110,8 +110,8 @@ If Seerr doesn't support OIDC natively, fallback is **option 3** (Worker pre-aut
 ### 5. API token Pages permission missing
 - Token has Workers + Access + KV + DNS. Lacks `Pages:Edit`. Wasn't needed for the build, but if future tasks need to mutate Pages, re-issue the token with that scope added.
 
-### 6. Phone push notifications
-- This session is running via API key auth — `/login` is hidden, session doesn't appear in the Claude Code mobile app's session list. To get phone push, user has to restart Claude Code without `ANTHROPIC_API_KEY` set in env, do OAuth login, then re-pair on phone. Context will reset on restart (memory files persist).
+### 6. Phone push notifications — DONE 2026-05-12
+- Restarted Claude Code without `ANTHROPIC_API_KEY`, OAuth login, phone paired.
 
 ## What I'd verify first next session
 1. `https://plaincandle.dev/` returns 200 after a real sign-in
