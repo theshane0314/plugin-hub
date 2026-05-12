@@ -6,7 +6,7 @@ Last touched: 2026-05-12. Active project: self-hosted services on TrueNAS (`LilN
 
 ## Handoff for the next Claude Code session (2026-05-12)
 
-Tasks 2, 3, 4, 5, 6 are **done**. Task 1 (OIDC SSO) is **not started** — it's the only remaining item.
+Tasks 2, 3, 4, 5, 6 are **done**. Task 1 (OIDC SSO) is **parked** — waiting on upstream Seerr PR #2715 to merge and the TrueNAS community chart to ship it. No active work to pick up. See task #1 below for the watch-list and the short implementation plan for when OIDC lands.
 
 What's committed on branch `claude/start-aionnas-docs-3TDDe` of `theshane0314/plugin-hub`:
 - `AIonNas.md` — this doc (TrueNAS API key redacted; check `C:\Users\Shane-PC\plaincandle\.env` for the real value).
@@ -128,7 +128,19 @@ Caveats / open questions for next session:
 - **Alternative — wait for #2715 to merge.** If the user is OK waiting, OIDC support is actively being worked on. Subscribe to #2715. That's the strictly better option once available.
 - **Alternative — run `preview-new-oidc` tag.** Risky for prod but might be acceptable for this single-user/small-multi-user deployment. Worth a test before committing to the proxy approach.
 
-**Suggested first step next session:** decide between (a) build the proxy worker now, (b) try `preview-new-oidc` in a side container, or (c) wait for #2715 to merge.
+**Decision 2026-05-12: WAITING for upstream.** User picked option (c) — wait for #2715 to merge into Seerr and a new community chart cut by TrueNAS that bumps Seerr past v3.2.0 with OIDC included. Reasons the other options were rejected:
+- Option (a) — Worker pre-auth proxy: real maintenance burden (KV password storage, encryption, Seerr user CRUD calls, Plex-user fallback) for an interim solution that gets thrown away once OIDC lands.
+- Option (b) — `preview-new-oidc` Docker tag: turned out to be a bigger swap than a tag bump. The TrueNAS community Seerr chart has **no image-tag override** (only TZ / port / env / storage / resources are user-editable). Running the preview build means either replacing the chart-managed app with a hand-rolled Custom App (image `ghcr.io/seerr-team/seerr:preview-new-oidc`, same config dataset mount, same port 30357 so the cloudflared tunnel stays unaffected) or standing up a parallel sidecar app on a different port with a ZFS clone of the config dataset. Preview build also risks an irreversible DB migration vs v3.2.0.
+
+**What to watch:** subscribe to PR [#2715](https://github.com/seerr-team/seerr/pull/2715). Once merged and shipped in a Seerr release, wait for the TrueNAS community catalog to publish a chart version that pins to it (community-train Seerr chart bumps live at `truenas/apps`).
+
+**When OIDC lands upstream, the implementation is short:**
+1. Upgrade the community Seerr app on TrueNAS to the chart version that includes OIDC.
+2. In Cloudflare Zero Trust → Settings → Authentication → Login methods → Add new → SAML/OIDC, expose CF Access as an OIDC provider. (Alternatively use the Generic OIDC option — CF documents the issuer/authorize/token endpoints.)
+3. In Seerr settings → Users → enable OIDC, paste the CF Access OIDC client id/secret/issuer URL, set email as the user-match field.
+4. Update the landing dashboard Seerr card to link straight to Seerr's OIDC initiation URL (something like `https://seerr.plaincandle.dev/login/oidc`) — exact path depends on what #2715 ships.
+
+Until then, users sign into Seerr the way they do today (Plex OAuth or local password). The CF Access gate in front of `seerr.plaincandle.dev` keeps the double-login minor — one OTP for CF Access, then one Plex click for Seerr.
 
 ### 2. Fix "OI" loading flash on `ai.plaincandle.dev` when unauth'd — DONE 2026-05-12
 - Resolved by `aionnas/fix-oi-flash.sh`: GETs each of the 4 Access apps, merges `auto_redirect_to_identity: true` and `skip_interstitial: true`, PUTs the full body back. Confirmed working — flash gone.
