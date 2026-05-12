@@ -97,16 +97,38 @@ Bash on Windows needs **Windows-style paths** (`C:/...`) for `-F @file` to read;
 
 ## Pending items to pick up next session
 
-### 1. OIDC SSO between landing → Seerr (started, not done)
+### 1. OIDC SSO between landing → Seerr — NOT STARTED (option 1 ruled out 2026-05-12)
 User asked: clicking the Seerr card on the landing should sign them straight into Seerr, no second login.
 
-Plan (option 1 from my earlier analysis):
-- Configure Cloudflare Access as an OIDC identity provider
-- Configure Seerr to accept OIDC sign-in (need to confirm Seerr v3.2.0 supports OIDC — Jellyseerr fork added it, Seerr fork may have it too)
-- Map CF Access email → Seerr user
+**Investigation 2026-05-12 — Seerr v3.2.0 does NOT support OIDC natively.**
+- Searched `server/routes/auth.ts` at tag `v3.2.0` (seerr-team/seerr): no `oidc` / `openid` / `sso` references in 819 lines. Only auth providers exposed are `/plex`, `/jellyfin`, `/local`, and password reset.
+- PR [#2715 "feat: initial support for OpenID Connect authentication"](https://github.com/seerr-team/seerr/pull/2715) is **OPEN** against `develop`, not merged.
+- PR [#1505 "feat: support OpenID Connect login"](https://github.com/seerr-team/seerr/pull/1505) (the earlier attempt) is **CLOSED unmerged**.
+- A `preview-new-oidc` Docker tag exists for testing #2715 but is preview-only and API-divergent from `v3.2.0`.
+- → **Option 1 (CF Access as OIDC IdP → Seerr) is not viable on current Seerr without forking or running the preview tag in prod.**
 
-If Seerr doesn't support OIDC natively, fallback is **option 3** (Worker pre-auth proxy):
-- Worker on a Seerr-fronting path reads CF Access identity, calls Seerr API with admin API key to mint a session cookie, sets cookie, redirects to Seerr UI.
+**Recommended path: option 3 variant (Worker pre-auth proxy with stored credentials).**
+Seerr's `/local` login (`POST /api/v1/auth/local`, body `{email, password}`) returns a `Set-Cookie: connect.sid=...` session cookie on success. There is no admin "mint session for user X" endpoint, so the Worker has to log in *as* the user with their actual password.
+
+Sketch:
+1. Add a per-user `seerr_password` field to the KV record (or a sidecar KV namespace, encrypted with a Worker-side key — `crypto.subtle` AES-GCM with key from a Worker secret).
+2. New route on `seerr.plaincandle.dev` (or a sub-path on landing) — call it `/auth/sso`. CF Access already protects it (user must be signed in to CF Access).
+3. Worker handler:
+   - Read `Cf-Access-Jwt-Assertion` header, verify against `https://plaincandle.cloudflareaccess.com/cdn-cgi/access/certs`, extract `email`.
+   - Look up KV record by lowercased email → get stored seerr password.
+   - `POST https://seerr.plaincandle.dev/api/v1/auth/local` with `{email, password}`, capture `Set-Cookie`.
+   - Rewrite the cookie's `Domain=seerr.plaincandle.dev`, return 302 to `/` with the cookie set.
+4. Landing dashboard's Seerr card links to `/auth/sso` instead of `/`.
+5. Admin worker grows a "set Seerr password" field per user; on user add, generate a random password, store both in KV and POST to Seerr's user-create endpoint (or have admin manually seed for now).
+
+Caveats / open questions for next session:
+- **Password storage** — even AES-GCM encrypted, this is a step down from OIDC. Acceptable only because the trust boundary is already CF Access + KV. Document this clearly before shipping.
+- **Email mismatch** — the CF Access email is the OTP recipient; the Seerr user's `email` field must match exactly (lowercased). Plex sign-ins create Seerr users with their Plex email; manual users created via admin worker should mirror the CF Access email.
+- **Plex-linked users** — Plex users in Seerr don't have local passwords. Either give them a local password too (so the proxy can use `/local`), or skip SSO for Plex users and let them keep clicking "Sign in with Plex".
+- **Alternative — wait for #2715 to merge.** If the user is OK waiting, OIDC support is actively being worked on. Subscribe to #2715. That's the strictly better option once available.
+- **Alternative — run `preview-new-oidc` tag.** Risky for prod but might be acceptable for this single-user/small-multi-user deployment. Worth a test before committing to the proxy approach.
+
+**Suggested first step next session:** decide between (a) build the proxy worker now, (b) try `preview-new-oidc` in a side container, or (c) wait for #2715 to merge.
 
 ### 2. Fix "OI" loading flash on `ai.plaincandle.dev` when unauth'd — DONE 2026-05-12
 - Resolved by `aionnas/fix-oi-flash.sh`: GETs each of the 4 Access apps, merges `auto_redirect_to_identity: true` and `skip_interstitial: true`, PUTs the full body back. Confirmed working — flash gone.
