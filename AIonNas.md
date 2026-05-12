@@ -89,17 +89,23 @@ Plan (option 1 from my earlier analysis):
 If Seerr doesn't support OIDC natively, fallback is **option 3** (Worker pre-auth proxy):
 - Worker on a Seerr-fronting path reads CF Access identity, calls Seerr API with admin API key to mint a session cookie, sets cookie, redirects to Seerr UI.
 
-### 2. Fix "OI" loading flash on `ai.plaincandle.dev` when unauth'd
-- Symptom: visiting `ai.plaincandle.dev` while signed out shows brief "OI" (Open WebUI) title flash before the CF Access login page loads. Likely browser cache / service worker for Open WebUI.
-- Started fix: set `auto_redirect_to_identity: true` and `skip_interstitial: true` on each Access app via PUT — but the PUT failed because it requires the full app body. Need to fetch the full app object first, merge the new flags, then PUT. User interrupted me before I finished that.
-- Alternative: configure Cache Rules to set `Cache-Control: no-store` on `ai.plaincandle.dev`, or strip the Open WebUI service worker.
+### 2. Fix "OI" loading flash on `ai.plaincandle.dev` when unauth'd — DONE 2026-05-12
+- Resolved by `aionnas/fix-oi-flash.sh`: GETs each of the 4 Access apps, merges `auto_redirect_to_identity: true` and `skip_interstitial: true`, PUTs the full body back. Confirmed working — flash gone.
+- If it ever regresses, the fallback is still: Cache Rule `Cache-Control: no-store` on `ai.plaincandle.dev`, or unregister the Open WebUI service worker.
 
 ### 3. Add Radarr/Sonarr to Seerr
 - Seerr is up but no \*arr servers configured yet. User was on that form when we got sidetracked. API keys for Radarr/Sonarr are stored in their own configs on TrueNAS. From inside the seerr container, Radarr was reachable at `http://192.168.0.3:30025` with key `df199fd6139549059e2cb8905e2721fb` (confirmed working).
 
-### 4. Old `plaincandle-home` Pages project cleanup
+### 4. Old `plaincandle-home` Pages project cleanup — IN PROGRESS
 - Dormant in dashboard, custom domain detached, DNS points to Worker now. User can delete from CF UI when convenient.
 - The deployed Pages project hosts `flame.svg` at `https://plaincandle-home.pages.dev/flame.svg` — currently referenced as the org-level logo path on the CF Access login page. **Don't delete until the logo is moved to the Worker or another host.**
+- Migration drop-in is at `aionnas/flame-svg-route.js`. Remaining manual steps (all documented inline in that file):
+  1. `curl https://plaincandle-home.pages.dev/flame.svg` and paste the body into the `FLAME_SVG` backticks.
+  2. Splice `maybeServeFlame` into `landing-worker/worker.js` as the first line of the fetch handler.
+  3. Add a path-level Bypass policy to the landing Access app for `/flame.svg` so it's reachable without auth (the CF Access login page itself fetches it pre-auth).
+  4. Redeploy landing-worker.
+  5. Update org-level CF Access logo URL to `https://plaincandle.dev/flame.svg`.
+  6. Verify sign-out → sign-in renders the flame, then delete the Pages project.
 
 ### 5. API token Pages permission missing
 - Token has Workers + Access + KV + DNS. Lacks `Pages:Edit`. Wasn't needed for the build, but if future tasks need to mutate Pages, re-issue the token with that scope added.
