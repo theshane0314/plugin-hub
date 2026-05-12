@@ -6,7 +6,7 @@ Last touched: 2026-05-12. Active project: self-hosted services on TrueNAS (`LilN
 
 ## Handoff for the next Claude Code session (2026-05-12)
 
-Tasks 2, 3, 5, 6 are **done**. Task 4 has a complete one-shot script ready (`aionnas/finish-flame-migration.sh`) but needs to be executed on the Windows box where `landing-worker/worker.js` actually lives. Task 1 (OIDC SSO) is **not started**.
+Tasks 2, 3, 4, 5, 6 are **done**. Task 1 (OIDC SSO) is **not started** — it's the only remaining item.
 
 What's committed on branch `claude/start-aionnas-docs-3TDDe` of `theshane0314/plugin-hub`:
 - `AIonNas.md` — this doc (TrueNAS API key redacted; check `C:\Users\Shane-PC\plaincandle\.env` for the real value).
@@ -115,14 +115,17 @@ If Seerr doesn't support OIDC natively, fallback is **option 3** (Worker pre-aut
 ### 3. Add Radarr/Sonarr to Seerr — DONE 2026-05-12
 - Both *arr servers connected to Seerr via its settings UI.
 
-### 4. Old `plaincandle-home` Pages project cleanup — IN PROGRESS (script ready)
-- Dormant in dashboard, custom domain detached, DNS points to Worker now. Blocked on moving the `flame.svg` logo off the Pages site (the CF Access org login page currently fetches it from `https://plaincandle-home.pages.dev/flame.svg`).
-- **One-shot script ready at `aionnas/finish-flame-migration.sh`.** Run on the Windows box, .env sourced (TOKEN, ACCT). Now that the token has `Pages:Edit` (task #5), the script can do the whole thing including Pages deletion.
-- Workflow:
-  1. `bash aionnas/finish-flame-migration.sh` — **dry-run by default.** Fetches the SVG from the old Pages URL, auto-detects whether `landing-worker/worker.js` uses module-worker (`async fetch(`) or service-worker (`addEventListener('fetch'`) shape, writes `worker.patched.js` next to it. No mutations to CF or to `worker.js`. Diff with `diff worker.js worker.patched.js | head -60`.
-  2. `bash aionnas/finish-flame-migration.sh --commit` — backs up `worker.js`, swaps in patched, deploys via the existing curl pattern, creates a sibling Access app (`flame-svg-public`) on `plaincandle.dev/flame.svg` with a Bypass=Everyone policy so the SVG is reachable pre-auth, updates the org-level `login_design.logo_path` to `https://plaincandle.dev/flame.svg` via API, verifies HTTP 200, then deletes the `plaincandle-home` Pages project.
-- Script bails cleanly with a clear message if it can't detect the worker shape, if the worker is already patched, or if verification doesn't return 200 (it stops before the Pages deletion in that case).
-- Earlier route snippet (`aionnas/flame-svg-route.js`) is now superseded by the script but kept for reference / manual fallback.
+### 4. Old `plaincandle-home` Pages project cleanup — DONE 2026-05-12
+- Ran `aionnas/finish-flame-migration.sh` on the Windows box (dry-run → diff looked clean → `--commit`).
+- Module-worker shape detected; patched `landing-worker/worker.js` to serve `/flame.svg` (720-byte SVG embedded as template literal). Backup at `worker.js.before-flame-migration.1778618033`.
+- Worker deployed. Sibling Access app `flame-svg-public` (id `5d2816e9-fecb-4548-9e03-aa09797bee73`) created on `plaincandle.dev/flame.svg` with `bypass-everyone` policy so the SVG is reachable pre-auth.
+- Org-level `login_design.logo_path` updated to `https://plaincandle.dev/flame.svg`. Verified HTTP 200, 720 bytes.
+- `plaincandle-home` Pages project deleted.
+- Gotchas hit (record for future scripts touching org settings):
+  - `jq` was missing on the Windows bash — installed binary to `C:\Users\Shane-PC\bin\jq.exe`.
+  - The PUT to `/access/organizations` requires the **full** org body merged with edits, not just the changed sub-object — minimum kept fields: `auth_domain`, `name`, `login_design`, `is_ui_read_only`, `allow_authenticate_via_warp`, `deny_unmatched_requests`, **and `mfa_config`** (omitting `mfa_config` triggers `access.api.error.mfa_authenticator_in_use` 12169 because the API treats absence as "remove authenticators" and the owner-only policy uses TOTP/biometrics).
+  - The script aborted at the deploy step on the first run (jq missing); the worker was already swapped+deployed by then. Verified live worker has the `BEGIN flame.svg migration` header before continuing, then ran the remaining steps manually.
+- Earlier route snippet (`aionnas/flame-svg-route.js`) and the script remain in `aionnas/` for reference.
 
 ### 5. API token Pages permission missing — DONE 2026-05-12
 - `plaincandle-admin` token edited via dashboard to add `Account → Cloudflare Pages → Edit`. Now has Workers + Access + KV + DNS + Pages:Edit. Can be used to script the `plaincandle-home` Pages deletion once #4 ships.
