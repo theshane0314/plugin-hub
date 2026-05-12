@@ -107,8 +107,8 @@ If Seerr doesn't support OIDC natively, fallback is **option 3** (Worker pre-aut
   5. Update org-level CF Access logo URL to `https://plaincandle.dev/flame.svg`.
   6. Verify sign-out → sign-in renders the flame, then delete the Pages project.
 
-### 5. API token Pages permission missing
-- Token has Workers + Access + KV + DNS. Lacks `Pages:Edit`. Wasn't needed for the build, but if future tasks need to mutate Pages, re-issue the token with that scope added.
+### 5. API token Pages permission missing — DONE 2026-05-12
+- `plaincandle-admin` token edited via dashboard to add `Account → Cloudflare Pages → Edit`. Now has Workers + Access + KV + DNS + Pages:Edit. Can be used to script the `plaincandle-home` Pages deletion once #4 ships.
 
 ### 6. Phone push notifications — DONE 2026-05-12
 - Restarted Claude Code without `ANTHROPIC_API_KEY`, OAuth login, phone paired.
